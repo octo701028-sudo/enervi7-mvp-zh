@@ -1,136 +1,200 @@
+# app.py — Enervi7 (Streamlit 完整版)
+import json
 import streamlit as st
-import matplotlib.pyplot as plt
-import matplotlib as mpl
-from matplotlib.font_manager import FontProperties
-import numpy as np
-import os, glob, io
+import plotly.graph_objects as go
 
-# ============= 字型自動偵測（避免中文變口口） =============
-FONT_DIR = "fonts"
-PREFERRED = [
-    "NotoSansTC-VariableFont_wght.ttf",
-    "NotoSansTC-Regular.ttf",
-    "NotoSansTC-Medium.ttf",
-    "NotoSansTC-Bold.ttf",
-    "NotoSansTC-Light.ttf",
-    "NotoSansTC-ExtraLight.ttf",
-]
+st.set_page_config(page_title="Enervi7 量測", layout="wide")
 
-def find_tc_font():
-    for name in PREFERRED:
-        p = os.path.join(FONT_DIR, name)
-        if os.path.exists(p): return p
-    matches = glob.glob(os.path.join(FONT_DIR, "NotoSansTC*.ttf"))
-    return matches[0] if matches else None
+# ============ 一、七階/轉換的文字資源 ============
+STAGE_META = {
+    "S1": {"name": "S1 覺察 Awareness",
+           "keywords": ["覺知當下", "辨識情緒", "看見模式", "誠實面對"],
+           "actions": ["寫三句『此刻我真實的感受是…』",
+                       "3 分鐘腹式呼吸（4-4-6）並記錄身體感受",
+                       "列出 1 個反覆出現的念頭，標記：是事實還是解讀？"]},
+    "S2": {"name": "S2 釋放 Release",
+           "keywords": ["鬆綁負荷", "情緒代謝", "放下執著", "完成回收"],
+           "actions": ["做一次『寫了就撕/燒』釋放書寫（2–3 段）",
+                       "身體掃描，對緊繃部位做 60 秒放鬆",
+                       "將一件拖延小事今天完成並打勾"]},
+    "S3": {"name": "S3 信任 Trust",
+           "keywords": ["允許發生", "對齊意圖", "資源感", "安全感"],
+           "actions": ["用『我允許…』造句 3 句（對應今日焦點）",
+                       "回顧 1 次被支持的證據，寫下為何可複製",
+                       "今天主動請求一次幫助（小範圍即可）"]},
+    "S4": {"name": "S4 行動 Action",
+           "keywords": ["最小步驟", "可驗證", "節奏", "執行力"],
+           "actions": ["把目標拆成 10 分鐘可完成的一步，現在就做",
+                       "設定今日 3 件 MIT",
+                       "完成後『公開回報』給可信任對象"]},
+    "S5": {"name": "S5 流動 Flow",
+           "keywords": ["專注", "回饋循環", "韌性", "迭代"],
+           "actions": ["把卡點→調整 1 個微策略（A/B 嘗試）",
+                       "25 分鐘番茄鐘全程專注",
+                       "記錄 1 個有效回饋，明天沿用"]},
+    "S6": {"name": "S6 共鳴 Resonance",
+           "keywords": ["連結", "價值感", "貢獻", "擴散"],
+           "actions": ["分享一個小成果或洞見到社群/朋友",
+                       "邀請 1 人給具體回饋（3 句具體描述）",
+                       "主動建立一個合作可能（發出一則邀請）"]},
+    "S7": {"name": "S7 整合 Integration",
+           "keywords": ["總結經驗", "固化習慣", "結構化", "長期化"],
+           "actions": ["用 5 句話摘要本週 3 件學到＋1 改進",
+                       "把有效步驟寫成 Checklist 並固定到行程",
+                       "為下個週期設定一個可衡量指標（KPI）"]},
+}
+TRANSITION_META = {
+    "T1": {"label": "S1→S2 臨界（覺察→釋放）",
+           "actions": ["把『我觀察到…』改寫成『我願意放下…』×3",
+                       "情緒書寫→身體放鬆收尾（頸肩/腹部）"]},
+    "T2": {"label": "S2→S3 臨界（釋放→信任）",
+           "actions": ["列出 3 個現有資源（人/物/技能）",
+                       "寫 1 段：若一切對我有利，今天我允許什麼？"]},
+    "T3": {"label": "S3→S4 臨界（信任→行動）",
+           "actions": ["產出『最小可行步驟』並在 10 分鐘內啟動",
+                       "預約 1 個『行動時段』，行前只做準備清單"]},
+    "T4": {"label": "S4→S5 臨界（行動→流動）",
+           "actions": ["把今日行動回饋記錄並做 1 次微調",
+                       "建立 25 分鐘專注儀式，結束回顧 2 分鐘"]},
+    "T5": {"label": "S5→S6 臨界（流動→共鳴）",
+           "actions": ["公開分享 1 個進展/案例，索取具體回饋",
+                       "辨識最被共鳴的價值，明天主打該元素"]},
+    "T6": {"label": "S6→S7 臨界（共鳴→整合）",
+           "actions": ["把有效做法寫成 SOP/Checklist",
+                       "選一個可持續節奏（週/月）放進行事曆"]},
+    "T7": {"label": "S7→S1 臨界（整合→新覺察）",
+           "actions": ["本週回顧 3 句＋下一輪新意圖 1 句",
+                       "挑選 1 個欲精進的指標，設置觀測方式"]},
+}
 
-tc_font_path = find_tc_font()
-if tc_font_path:
-    try:
-        mpl.font_manager.fontManager.addfont(tc_font_path)
-    except Exception:
-        pass
-    fp = FontProperties(fname=tc_font_path)
-    mpl.rcParams["font.family"] = fp.get_name()
-    mpl.rcParams["axes.unicode_minus"] = False
-else:
-    st.warning("⚠️ 找不到中文字型，請把任一 `NotoSansTC*.ttf` 放到 `fonts/` 資料夾。")
+# ============ 二、核心計分函式 ============
+def compute_enervi7_scores(answers, penalty=False, tau=4.0, delta=0.3):
+    Q = [float(answers.get(f"Q{i}", 0)) for i in range(1, 8)]
+    T = [float(answers.get(f"T{i}", 0)) for i in range(1, 8)]
+    wQ, wPrev, wNext = 0.60, 0.20, 0.20
+    stages_raw = []
+    for i in range(7):
+        prev_t = T[(i - 1) % 7]
+        next_t = T[i]
+        val = wQ * Q[i] + wPrev * prev_t + wNext * next_t
+        if penalty:
+            if prev_t < tau: val -= delta
+            if next_t < tau: val -= delta
+            val = max(0.0, val)
+        stages_raw.append(val)
+    stages = [round(v * 10, 1) for v in stages_raw]     # 0..100
+    transitions = [round(t * 10, 1) for t in T]         # 0..100
+    stages_dict = {f"S{i+1}": stages[i] for i in range(7)}
+    transitions_dict = {f"T{i+1}": transitions[i] for i in range(7)}
+    dominant_idx = max(range(7), key=lambda i: stages[i])
+    bottleneck_sorted = sorted(range(7), key=lambda i: transitions[i])[:2]
+    return {
+        "stages": stages_dict,
+        "transitions": transitions_dict,
+        "dominant_stage": f"S{dominant_idx+1}",
+        "bottleneck_transitions": [f"T{i+1}" for i in bottleneck_sorted]
+    }
 
-# ============= 七階定義（名稱、關鍵字、行動特徵、突破關鍵） =============
-LEVELS = [
-    {
-        "name": "Level 0 覺知啟動",
-        "kw": "清明、觀察",
-        "feature": "開始注意自己的情緒與行動模式",
-        "break": "建立「覺察日誌」",
-    },
-    {
-        "name": "Level 1 情緒穩定",
-        "kw": "平衡、包容",
-        "feature": "減少情緒波動，情緒不干擾判斷",
-        "break": "呼吸與釋放練習",
-    },
-    {
-        "name": "Level 2 行動啟動",
-        "kw": "決心、推進",
-        "feature": "從構想到行動的時間縮短",
-        "break": "小步快跑法則",
-    },
-    {
-        "name": "Level 3 關係互動",
-        "kw": "連結、信任",
-        "feature": "主動尋求合作與資源",
-        "break": "開啟互助專案",
-    },
-    {
-        "name": "Level 4 表達流動",
-        "kw": "豐盛、主權",
-        "feature": "把想法落地為具體成果",
-        "break": "行動＋回饋循環",
-    },
-    {
-        "name": "Level 5 直覺開展",
-        "kw": "洞察、整合",
-        "feature": "看見全局、跨領域連結",
-        "break": "內外合一策略",
-    },
-    {
-        "name": "Level 6 靈性覺醒",
-        "kw": "無限、共創",
-        "feature": "能量可自由轉換為財富／成果",
-        "break": "成果倍增法",
-    },
-]
+# ============ 三、UI：表單（提交後立即出圖） ============
+st.title("Enervi7 量測（Streamlit 版）")
+st.caption("輸入 14 題（0–10），按下「開始測驗」後立即顯示雷達圖與結果。下方恆常顯示七階關鍵字／行動建議。")
 
-def suggest_line(score: int, breakthrough: str) -> str:
-    if score < 40:
-        return f"起步建議：先做「{breakthrough}」，每天 5–10 分鐘建立慣性。"
-    elif score < 70:
-        return f"優化建議：持續「{breakthrough}」，再加入每週一次回顧調整。"
-    else:
-        return f"加速建議：把「{breakthrough}」制度化，擴大到團隊／夥伴共作。"
+with st.form("enervi7_form", clear_on_submit=False):
+    colL, colR = st.columns(2)
+    with colL:
+        st.subheader("七階題 Q1–Q7")
+        Q_vals = {f"Q{i}": st.number_input(f"Q{i}", 0.0, 10.0, 5.0, 0.1, key=f"Q{i}") for i in range(1,8)}
+    with colR:
+        st.subheader("七個轉換 T1–T7")
+        T_vals = {f"T{i}": st.number_input(f"T{i}", 0.0, 10.0, 5.0, 0.1, key=f"T{i}") for i in range(1,8)}
 
-# ============= 介面 =============
-st.title("✨ 七階能量圖")
-st.markdown("輸入或調整每一階的能量值（0–100），即時生成雷達圖，並可下載 PNG / PDF。")
+    st.divider()
+    c1, c2, c3 = st.columns([1,1,2])
+    with c1:
+        use_penalty = st.checkbox("加強卡關顯示", value=st.session_state.get("use_penalty", False))
+    with c2:
+        tau = st.number_input("門檻 τ", 0.0, 10.0, float(st.session_state.get("tau", 4.0)), 0.1)
+    with c3:
+        delta = st.number_input("強度 δ", 0.0, 2.0, float(st.session_state.get("delta", 0.3)), 0.1)
 
-chart_title = st.text_input("圖表標題（可自訂）", "我的能量狀態")
+    submitted = st.form_submit_button("開始測驗", use_container_width=True)
 
-scores = []
-for L in LEVELS:
-    v = st.slider(L["name"], 0, 100, 50)
-    scores.append(v)
+# 記住參數
+st.session_state["use_penalty"] = use_penalty
+st.session_state["tau"] = tau
+st.session_state["delta"] = delta
 
-# ============= 雷達圖 =============
-labels = [L["name"] for L in LEVELS]
-angles = np.linspace(0, 2*np.pi, len(labels), endpoint=False).tolist()
-vals = scores + scores[:1]
-angs = angles + angles[:1]
+# 計算（首次提交後，或之後每次提交都覆寫結果）
+if submitted:
+    payload = {**Q_vals, **T_vals}
+    st.session_state["result"] = compute_enervi7_scores(payload, penalty=use_penalty, tau=tau, delta=delta)
+    st.session_state["input_payload"] = payload
 
-fig, ax = plt.subplots(figsize=(6.5, 6.5), subplot_kw=dict(polar=True))
-ax.plot(angs, vals, "o-", linewidth=2, label="能量值")
-ax.fill(angs, vals, alpha=0.25)
-ax.set_xticks(angles)
-ax.set_xticklabels(labels, fontproperties=(FontProperties(fname=tc_font_path) if tc_font_path else None))
-ax.set_yticks([20, 40, 60, 80, 100])
-ax.set_ylim(0, 100)
-plt.title(chart_title, size=16, fontproperties=(FontProperties(fname=tc_font_path) if tc_font_path else None))
-st.pyplot(fig)
+# 只要 session_state 有結果就顯示圖示與報表
+if "result" in st.session_state:
+    result = st.session_state["result"]
 
-# ============= 下載按鈕 =============
-buf_png = io.BytesIO()
-fig.savefig(buf_png, format="png", bbox_inches="tight")
-st.download_button("⬇️ 下載 PNG", data=buf_png.getvalue(), file_name="energy_chart.png", mime="image/png")
+    # ============ 雷達圖 ============
+    st.subheader("雷達圖")
+    labels = [STAGE_META[f"S{i+1}"]["name"] for i in range(7)]
+    vals = [result["stages"][f"S{i+1}"] for i in range(7)]
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(r=vals + [vals[0]],
+                                  theta=labels + [labels[0]],
+                                  fill="toself", name="Enervi7"))
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
+                      showlegend=False, margin=dict(t=10, r=10, b=10, l=10), height=440)
+    st.plotly_chart(fig, use_container_width=True)
 
-buf_pdf = io.BytesIO()
-fig.savefig(buf_pdf, format="pdf", bbox_inches="tight")
-st.download_button("⬇️ 下載 PDF", data=buf_pdf.getvalue(), file_name="energy_chart.pdf", mime="application/pdf")
+    # ============ 七階/轉換分數表 ============
+    cL, cR = st.columns(2)
+    with cL:
+        st.markdown("### 七階分數（0–100）")
+        for i in range(1,8):
+            v = result["stages"][f"S{i}"]
+            level = "低" if v < 40 else ("中" if v < 70 else "高")
+            st.write(f"**{STAGE_META[f'S{i}']['name']}**：{v}（{level}）")
+    with cR:
+        st.markdown("### 轉換分數（0–100）")
+        for i in range(1,8):
+            v = result["transitions"][f"T{i}"]
+            level = "低" if v < 40 else ("中" if v < 70 else "高")
+            st.write(f"**{TRANSITION_META[f'T{i}']['label']}**：{v}（{level}）")
 
-# ============= 圖下方：七階關鍵字／行動建議 =============
-st.markdown("## ✨ 微行動建議")
-for i, L in enumerate(LEVELS):
-    s = scores[i]
-    with st.expander(f"{L['name']}｜分數：{s}"):
-        st.markdown(f"**情緒關鍵詞**：{L['kw']}")
-        st.markdown(f"**行動特徵**：{L['feature']}")
-        st.markdown(f"**突破關鍵**：{L['break']}")
-        st.info(suggest_line(s, L["break"]))
+    # ============ 摘要 ============
+    s_dom = result["dominant_stage"]
+    b1, b2 = result["bottleneck_transitions"]
+    st.info(f"主導階段：**{STAGE_META[s_dom]['name']}**｜瓶頸：**{TRANSITION_META[b1]['label']}**；次瓶頸：**{TRANSITION_META[b2]['label']}**")
+
+    # ============ JSON 結果＋下載 ============
+    out = {
+        "input": st.session_state.get("input_payload", {}) | {"penalty": use_penalty, "tau": tau, "delta": delta},
+        "result": result
+    }
+    st.markdown("### JSON 結果")
+    st.code(json.dumps(out, ensure_ascii=False, indent=2), language="json")
+    st.download_button("下載結果 JSON",
+        data=json.dumps(out, ensure_ascii=False, indent=2).encode("utf-8"),
+        file_name="enervi7_result.json", mime="application/json")
+
+# ============ 四、七階關鍵字＋行動建議（恆常顯示） ============
+st.markdown("---")
+st.header("七階關鍵字＋行動建議")
+cols = st.columns(3)
+for idx, sid in enumerate(["S1","S2","S3","S4","S5","S6","S7"]):
+    with cols[idx % 3]:
+        meta = STAGE_META[sid]
+        st.subheader(meta["name"])
+        st.caption("關鍵字")
+        st.write("、".join(meta["keywords"]))
+        st.caption("行動建議")
+        for act in meta["actions"]:
+            st.write("•", act)
+
+# ============ 五、瓶頸轉換建議（說明） ============
+with st.expander("瓶頸轉換的解卡建議（說明）"):
+    st.write("測驗後系統會自動找出分數最低的兩個轉換（T1–T7），並顯示對應的行動。")
+    for tid, meta in TRANSITION_META.items():
+        st.write(f"**{meta['label']}**")
+        for act in meta["actions"]:
+            st.write("•", act)
