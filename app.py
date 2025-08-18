@@ -185,7 +185,6 @@ for idx, sid in enumerate(["S1","S2","S3","S4","S5","S6","S7"]):
         st.caption("行動建議")
         for act in meta["actions"]:
             st.write("•", act)
-
 # ============ 八、瓶頸轉換建議（說明） ============
 with st.expander("瓶頸轉換的解卡建議（說明）"):
     st.write("計算後會自動找出分數最低的兩個轉換（T1–T7），並顯示對應的解卡行動。")
