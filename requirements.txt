@@ -1,7 +1,2 @@
 streamlit
-matplotlib
-numpy
-reportlab
-pandas
-streamlit
 plotly
