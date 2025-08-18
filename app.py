@@ -1,5 +1,4 @@
-# app.py — Enervi7 (Streamlit 最完整版)
-import json
+# app.py — Enervi7（Streamlit 最終版；已移除 JSON 區塊）
 import streamlit as st
 import plotly.graph_objects as go
 
@@ -25,7 +24,7 @@ T_TEXTS = {
     "T7": "T7 整合→新覺察：結束一輪後回到清明覺察開啟下一輪是順暢的。"
 }
 
-# ============ 二、七階/轉換的文字資源 ============
+# ============ 二、七階/轉換文字資源 ============
 STAGE_META = {
     "S1": {"name": "S1 覺察 Awareness",
            "keywords": ["覺知當下", "辨識情緒", "看見模式", "誠實面對"],
@@ -95,8 +94,8 @@ def compute_enervi7_scores(answers, penalty=False, tau=4.0, delta=0.3):
 
     stages_raw = []
     for i in range(7):
-        prev_t = T[(i - 1) % 7]  # Ti-1 影響當前階段
-        next_t = T[i]            # Ti   影響當前階段
+        prev_t = T[(i - 1) % 7]
+        next_t = T[i]
         val = wQ * Q[i] + wPrev * prev_t + wNext * next_t
         if penalty:
             if prev_t < tau: val -= delta
@@ -119,7 +118,7 @@ def compute_enervi7_scores(answers, penalty=False, tau=4.0, delta=0.3):
         "bottleneck_transitions": [f"T{i+1}" for i in bottleneck_sorted]
     }
 
-# ============ 四、UI：表單（一鍵提交、即時出圖） ============
+# ============ 四、UI：表單（一鍵提交、立即出圖） ============
 st.title("Enervi7 量測（Streamlit 版）")
 st.caption("填寫 14 題（0–10）。按「開始測驗」後立即顯示雷達圖、分數與瓶頸摘要。下方恆常顯示七階關鍵字／行動建議。")
 
@@ -139,11 +138,12 @@ with st.form("enervi7_form", clear_on_submit=False):
     st.divider()
     c1, c2, c3 = st.columns([1,1,2])
     with c1:
-        use_penalty = st.checkbox("加強卡關顯示（低轉換會小幅拉低相鄰階段）", value=st.session_state.get("use_penalty", False))
+        use_penalty = st.checkbox("加強卡關顯示（低轉換會小幅拉低相鄰階段）",
+                                  value=st.session_state.get("use_penalty", False))
     with c2:
-        tau = st.number_input("門檻 τ（0..10）", min_value=0.0, max_value=10.0, value=float(st.session_state.get("tau", 4.0)), step=0.1)
+        tau = st.number_input("門檻 τ（0..10）", 0.0, 10.0, float(st.session_state.get("tau", 4.0)), 0.1)
     with c3:
-        delta = st.number_input("強度 δ（0..2）", min_value=0.0, max_value=2.0, value=float(st.session_state.get("delta", 0.3)), step=0.1)
+        delta = st.number_input("強度 δ（0..2）", 0.0, 2.0, float(st.session_state.get("delta", 0.3)), 0.1)
 
     submitted = st.form_submit_button("開始測驗", use_container_width=True)
 
@@ -155,8 +155,9 @@ st.session_state["delta"] = delta
 # 計算（每次提交覆寫結果）
 if submitted:
     payload = {**Q_vals, **T_vals}
-    st.session_state["result"] = compute_enervi7_scores(payload, penalty=use_penalty, tau=tau, delta=delta)
-    st.session_state["input_payload"] = payload
+    st.session_state["result"] = compute_enervi7_scores(
+        payload, penalty=use_penalty, tau=tau, delta=delta
+    )
 
 # ============ 五、結果顯示 ============
 if "result" in st.session_state:
@@ -168,16 +169,12 @@ if "result" in st.session_state:
     vals = [result["stages"][f"S{i+1}"] for i in range(7)]
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
-        r=vals + [vals[0]],
-        theta=labels + [labels[0]],
-        fill="toself",
-        name="Enervi7"
+        r=vals + [vals[0]], theta=labels + [labels[0]],
+        fill="toself", name="Enervi7"
     ))
     fig.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-        showlegend=False,
-        margin=dict(t=10, r=10, b=10, l=10),
-        height=440
+        showlegend=False, margin=dict(t=10, r=10, b=10, l=10), height=440
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -204,25 +201,11 @@ if "result" in st.session_state:
         f"瓶頸：**{TRANSITION_META[b1]['label']}**；次瓶頸：**{TRANSITION_META[b2]['label']}**"
     )
 
-    # JSON 結果下載
-    out = {
-        "input": st.session_state.get("input_payload", {}) | {"penalty": use_penalty, "tau": tau, "delta": delta},
-        "result": result
-    }
-    st.markdown("### JSON 結果")
-    st.code(json.dumps(out, ensure_ascii=False, indent=2), language="json")
-    st.download_button(
-        "下載結果 JSON",
-        data=json.dumps(out, ensure_ascii=False, indent=2).encode("utf-8"),
-        file_name="enervi7_result.json",
-        mime="application/json"
-    )
-
 # ============ 六、七階關鍵字＋行動建議（恆常顯示） ============
 st.markdown("---")
 st.header("七階關鍵字＋行動建議")
 cols = st.columns(3)
-for idx, sid in enumerate(["S1", "S2", "S3", "S4", "S5", "S6", "S7"]):
+for idx, sid in enumerate(["S1","S2","S3","S4","S5","S6","S7"]):
     with cols[idx % 3]:
         meta = STAGE_META[sid]
         st.subheader(meta["name"])
